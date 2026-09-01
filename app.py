@@ -412,7 +412,7 @@ def automated_background_worker():
     global POST_MARKET_SCAN_DONE
     log("🚀 Background 24/7 Market Engine Started.")
     
-    time.sleep(5)  # Let web server start first
+    time.sleep(5)
     run_daily_investment_scan()
     run_fno_trading_scan()
 
@@ -454,8 +454,7 @@ demo = gr.Interface(
     inputs=None,
     outputs="text",
     title="🇮🇳 NSE Indian Stock Market AI Bot",
-    description="Running 24/7 on Render Cloud. Signals and Charts are automatically pushed to your Telegram bot.",
-    every=10
+    description="Running 24/7 on Render Cloud. Signals and Charts are automatically pushed to your Telegram bot."
 )
 
 if __name__ == "__main__":
