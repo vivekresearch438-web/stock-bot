@@ -1,0 +1,8 @@
+yfinance
+mplfinance
+google-genai
+pillow
+requests
+pytz
+pandas
+gradio
