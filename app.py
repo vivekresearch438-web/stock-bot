@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import time
 import threading
 from datetime import datetime
@@ -75,7 +76,7 @@ def resolve_active_model():
                 return m
     except Exception:
         pass
-    return "gemini-3.6-flash"
+    return "gemini-2.5-flash"
 
 ACTIVE_MODEL = resolve_active_model()
 
@@ -310,100 +311,108 @@ def run_fno_trading_scan(is_btst=False):
     log(f"⚡ Scanning F&O Basket ({mode_tag})...")
 
     for ticker, clean_name in FO_WATCHLIST:
-        is_index = ticker in ["^NSEI", "^NSEBANK"]
-        img_bytes, stats, current_price = generate_technical_dataset(ticker, clean_name, timeframe="15m", period="5d")
-        if not img_bytes:
-            continue
+        try:
+            is_index = ticker in ["^NSEI", "^NSEBANK"]
+            img_bytes, stats, current_price = generate_technical_dataset(ticker, clean_name, timeframe="15m", period="5d")
+            if not img_bytes:
+                continue
 
-        signal = analyze_trading_fno_setup(img_bytes, clean_name, stats, is_index, force_btst=is_btst)
-        if not signal:
-            continue
+            signal = analyze_trading_fno_setup(img_bytes, clean_name, stats, is_index, force_btst=is_btst)
+            if not signal:
+                continue
 
-        action = signal.get("action", "NO_TRADE")
-        confidence = float(signal.get("confidence", 0))
-        strategy_style = signal.get("strategy_style", "INTRADAY_FNO")
-        threshold = MULTI_DAY_CONFIDENCE if strategy_style == "MULTI_DAY_CARRY" else MIN_CONFIDENCE
+            action = signal.get("action", "NO_TRADE")
+            confidence = float(signal.get("confidence", 0))
+            strategy_style = signal.get("strategy_style", "INTRADAY_FNO")
+            threshold = MULTI_DAY_CONFIDENCE if strategy_style == "MULTI_DAY_CARRY" else MIN_CONFIDENCE
 
-        if action in ["BUY_CE", "BUY_PE", "BUY_EQUITY"] and confidence >= threshold:
-            badge = "🟢 <b>BUY CE (CALL)</b>" if action == "BUY_CE" else ("🔴 <b>BUY PE (PUT)</b>" if action == "BUY_PE" else "📈 <b>BUY CASH</b>")
-            style_badge = "⚡ <b>SCALP</b>" if strategy_style == "SCALPING" else ("🌙 <b>MULTI-DAY CARRY</b>" if strategy_style == "MULTI_DAY_CARRY" else "⏱️ <b>INTRADAY</b>")
-            
-            caption = (
-                f"🚨 <b>{style_badge} | {badge} ({confidence*100:.0f}% CONFIDENCE)</b>\n\n"
-                f"<b>Asset:</b> {clean_name} | <b>CMP:</b> ₹{stats['price']}\n"
-                f"<b>Suggested Strike:</b> {signal.get('recommended_instrument')}\n\n"
-                f"🛡️ <b>Hedging Strategy:</b>\n<i>{signal.get('hedging_spread')}</i>\n\n"
-                f"⏳ <b>Holding Time:</b> {signal.get('holding_duration')}\n\n"
-                f"🎯 <b>Entry:</b> ₹{signal.get('entry')}\n"
-                f"🛑 <b>Stop Loss:</b> ₹{signal.get('stop_loss')}\n"
-                f"🔄 <b>Trailing SL:</b> {signal.get('trailing_sl_rule')}\n"
-                f"🏁 <b>Target 1:</b> ₹{signal.get('target_1')}\n"
-                f"🚀 <b>Target 2:</b> ₹{signal.get('target_2')}\n\n"
-                f"📝 <b>Rationale:</b> {signal.get('rationale')}"
-            )
-            send_telegram(caption, img_bytes)
-            log(f"✅ Dispatched {strategy_style} alert for {clean_name}")
+            if action in ["BUY_CE", "BUY_PE", "BUY_EQUITY"] and confidence >= threshold:
+                badge = "🟢 <b>BUY CE (CALL)</b>" if action == "BUY_CE" else ("🔴 <b>BUY PE (PUT)</b>" if action == "BUY_PE" else "📈 <b>BUY CASH</b>")
+                style_badge = "⚡ <b>SCALP</b>" if strategy_style == "SCALPING" else ("🌙 <b>MULTI-DAY CARRY</b>" if strategy_style == "MULTI_DAY_CARRY" else "⏱️ <b>INTRADAY</b>")
+                
+                caption = (
+                    f"🚨 <b>{style_badge} | {badge} ({confidence*100:.0f}% CONFIDENCE)</b>\n\n"
+                    f"<b>Asset:</b> {clean_name} | <b>CMP:</b> ₹{stats['price']}\n"
+                    f"<b>Suggested Strike:</b> {signal.get('recommended_instrument')}\n\n"
+                    f"🛡️ <b>Hedging Strategy:</b>\n<i>{signal.get('hedging_spread')}</i>\n\n"
+                    f"⏳ <b>Holding Time:</b> {signal.get('holding_duration')}\n\n"
+                    f"🎯 <b>Entry:</b> ₹{signal.get('entry')}\n"
+                    f"🛑 <b>Stop Loss:</b> ₹{signal.get('stop_loss')}\n"
+                    f"🔄 <b>Trailing SL:</b> {signal.get('trailing_sl_rule')}\n"
+                    f"🏁 <b>Target 1:</b> ₹{signal.get('target_1')}\n"
+                    f"🚀 <b>Target 2:</b> ₹{signal.get('target_2')}\n\n"
+                    f"📝 <b>Rationale:</b> {signal.get('rationale')}"
+                )
+                send_telegram(caption, img_bytes)
+                log(f"✅ Dispatched {strategy_style} alert for {clean_name}")
 
-            ACTIVE_POSITIONS[f"TRADE_{ticker}"] = {
-                "name": clean_name,
-                "ticker": ticker,
-                "category": "TRADING",
-                "strategy": strategy_style,
-                "direction": action,
-                "entry": float(signal.get('entry', current_price)),
-                "t1": float(signal.get('target_1', current_price * 1.01)),
-                "t2": float(signal.get('target_2', current_price * 1.02)),
-                "sl": float(signal.get('stop_loss', current_price * 0.994)),
-                "t1_hit": False
-            }
-        time.sleep(2)
+                ACTIVE_POSITIONS[f"TRADE_{ticker}"] = {
+                    "name": clean_name,
+                    "ticker": ticker,
+                    "category": "TRADING",
+                    "strategy": strategy_style,
+                    "direction": action,
+                    "entry": float(signal.get('entry', current_price)),
+                    "t1": float(signal.get('target_1', current_price * 1.01)),
+                    "t2": float(signal.get('target_2', current_price * 1.02)),
+                    "sl": float(signal.get('stop_loss', current_price * 0.994)),
+                    "t1_hit": False
+                }
+            time.sleep(2)
+        except Exception as e:
+            log(f"Error in F&O item {clean_name}: {e}")
 
 def run_daily_investment_scan():
     log("💎 Scanning Long-Term Investment Candidates...")
     for ticker, clean_name in INVESTMENT_WATCHLIST:
-        img_bytes, stats, current_price = generate_technical_dataset(ticker, clean_name, timeframe="1d", period="1y")
-        if not img_bytes:
-            continue
+        try:
+            img_bytes, stats, current_price = generate_technical_dataset(ticker, clean_name, timeframe="1d", period="1y")
+            if not img_bytes:
+                continue
 
-        signal = analyze_investment_multihorizon(img_bytes, clean_name, stats)
-        if not signal:
-            continue
+            signal = analyze_investment_multihorizon(img_bytes, clean_name, stats)
+            if not signal:
+                continue
 
-        action = signal.get("action", "NO_TRADE")
-        confidence = float(signal.get("confidence", 0))
+            action = signal.get("action", "NO_TRADE")
+            confidence = float(signal.get("confidence", 0))
 
-        if action in ["ACCUMULATE", "STRONG_BUY"] and confidence >= MIN_CONFIDENCE:
-            targets = signal.get("targets", {})
-            caption = (
-                f"💎 <b>LONG-TERM INVESTMENT PICK ({confidence*100:.0f}% CONFIDENCE)</b>\n\n"
-                f"<b>Stock:</b> {clean_name} | 🟢 <b>{action}</b>\n"
-                f"<b>CMP:</b> ₹{stats['price']}\n"
-                f"<b>Accumulation Zone:</b> {signal.get('accumulation_range')}\n"
-                f"<b>Invalidation / SL:</b> ₹{signal.get('stop_loss')}\n\n"
-                f"🎯 <b>1-Month Target:</b> ₹{targets.get('1_month_target')}\n"
-                f"🎯 <b>6-Month Target:</b> ₹{targets.get('6_month_target')}\n"
-                f"🚀 <b>1-Year Target:</b> ₹{targets.get('1_year_target')}\n\n"
-                f"🔄 <b>Trailing Rule:</b> {signal.get('trailing_rule')}\n"
-                f"🛡️ <b>Portfolio Hedge:</b> {signal.get('hedging_optional')}\n\n"
-                f"📝 <b>Thesis:</b> {signal.get('investment_thesis')}"
-            )
-            send_telegram(caption, img_bytes)
-            log(f"✅ Dispatched Investment pick for {clean_name}")
+            if action in ["ACCUMULATE", "STRONG_BUY"] and confidence >= MIN_CONFIDENCE:
+                targets = signal.get("targets", {})
+                caption = (
+                    f"💎 <b>LONG-TERM INVESTMENT PICK ({confidence*100:.0f}% CONFIDENCE)</b>\n\n"
+                    f"<b>Stock:</b> {clean_name} | 🟢 <b>{action}</b>\n"
+                    f"<b>CMP:</b> ₹{stats['price']}\n"
+                    f"<b>Accumulation Zone:</b> {signal.get('accumulation_range')}\n"
+                    f"<b>Invalidation / SL:</b> ₹{signal.get('stop_loss')}\n\n"
+                    f"🎯 <b>1-Month Target:</b> ₹{targets.get('1_month_target')}\n"
+                    f"🎯 <b>6-Month Target:</b> ₹{targets.get('6_month_target')}\n"
+                    f"🚀 <b>1-Year Target:</b> ₹{targets.get('1_year_target')}\n\n"
+                    f"🔄 <b>Trailing Rule:</b> {signal.get('trailing_rule')}\n"
+                    f"🛡️ <b>Portfolio Hedge:</b> {signal.get('hedging_optional')}\n\n"
+                    f"📝 <b>Thesis:</b> {signal.get('investment_thesis')}"
+                )
+                send_telegram(caption, img_bytes)
+                log(f"✅ Dispatched Investment pick for {clean_name}")
 
-            ACTIVE_POSITIONS[f"INV_{ticker}"] = {
-                "name": clean_name,
-                "ticker": ticker,
-                "category": "INVESTING",
-                "direction": "BUY_EQUITY",
-                "entry": stats['price'],
-                "sl": float(signal.get('stop_loss', stats['price'] * 0.91)),
-                "targets": targets
-            }
-        time.sleep(2)
+                ACTIVE_POSITIONS[f"INV_{ticker}"] = {
+                    "name": clean_name,
+                    "ticker": ticker,
+                    "category": "INVESTING",
+                    "direction": "BUY_EQUITY",
+                    "entry": stats['price'],
+                    "sl": float(signal.get('stop_loss', stats['price'] * 0.91)),
+                    "targets": targets
+                }
+            time.sleep(2)
+        except Exception as e:
+            log(f"Error in Investment item {clean_name}: {e}")
 
 def automated_background_worker():
     global POST_MARKET_SCAN_DONE
     log("🚀 Background 24/7 Market Engine Started.")
+    
+    time.sleep(5)  # Let web server start first
     run_daily_investment_scan()
     run_fno_trading_scan()
 
@@ -445,10 +454,10 @@ demo = gr.Interface(
     inputs=None,
     outputs="text",
     title="🇮🇳 NSE Indian Stock Market AI Bot",
-    description="Running 24/7 on Hugging Face Cloud. Signals and Charts are automatically pushed to your Telegram bot.",
+    description="Running 24/7 on Render Cloud. Signals and Charts are automatically pushed to your Telegram bot.",
     every=10
 )
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
-  
+    port = int(os.environ.get("PORT", 10000))
+    demo.launch(server_name="0.0.0.0", server_port=port)
