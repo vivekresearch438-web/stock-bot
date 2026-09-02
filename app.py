@@ -15,7 +15,7 @@ from google.genai import types
 import gradio as gr
 
 # ==================== 🔑 CONFIGURATION ====================
-GEMINI_API_KEY = "AQ.Ab8RN6K9vfhf1VBCniIo3UK1SqniWZHH_5SStWv-7TwTP_59uw".strip()
+GEMINI_API_KEY = "AQ.Ab8RN6Ll9KCzPwjpw-AJH2sdP2sGAiqUR3uxulUJbJ9gKk3ADQ".strip()
 TELEGRAM_BOT_TOKEN = "8125553397:AAGEextoGrpeFoCgcUc9G8owqECCX6BAtLk".strip()
 TELEGRAM_CHAT_ID = "5912667880".strip()
 
