@@ -68,12 +68,8 @@ def log(msg):
     if len(logs) > 50:
         logs.pop(0)
 
-# ==================== 🤖 GEMINI CALL VIA HTTP (AQ KEY COMPATIBLE) ====================
+# ==================== 🤖 GEMINI CALL VIA HTTP ====================
 def ask_gemini_analysis(symbol_name, timeframe, price_summary):
-    """
-    Direct HTTP call to Generative Language API.
-    Bypasses the SDK Bearer token conversion that causes ACCESS_TOKEN_TYPE_UNSUPPORTED.
-    """
     if not GEMINI_API_KEY:
         return None, "Error: GEMINI_API_KEY environment variable is empty."
 
@@ -135,12 +131,23 @@ def scan_symbol(ticker, name, period="5d", interval="15m", mode="INTRADAY"):
         if df.empty or len(df) < 15:
             return
 
+        # Flatten multi-level columns if created by yfinance
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+
         last_row = df.iloc[-1]
+        
+        # Safely convert to scalar float regardless of yfinance series structure
+        close_p = float(pd.Series(last_row['Close']).iloc[0])
+        high_p  = float(pd.Series(last_row['High']).iloc[0])
+        low_p   = float(pd.Series(last_row['Low']).iloc[0])
+        vol_val = int(pd.Series(last_row['Volume']).iloc[0]) if 'Volume' in df else 0
+
         summary = (
-            f"Current Price: {float(last_row['Close']):.2f}\n"
-            f"High: {float(last_row['High']):.2f}\n"
-            f"Low: {float(last_row['Low']):.2f}\n"
-            f"Volume: {int(last_row['Volume']) if 'Volume' in df else 'N/A'}"
+            f"Current Price: {close_p:.2f}\n"
+            f"High: {high_p:.2f}\n"
+            f"Low: {low_p:.2f}\n"
+            f"Volume: {vol_val}"
         )
 
         analysis, err = ask_gemini_analysis(name, interval, summary)
@@ -184,13 +191,13 @@ def run_market_engine():
                 scan_symbol(ticker, name, period="5d", interval="15m", mode="F&O")
                 time.sleep(2)
 
-            # Wait 15 minutes before the next full scanning round
+            # Wait 15 minutes before the next scan cycle
             time.sleep(900)
         except Exception as e:
             log(f"Engine Loop Error: {e}")
             time.sleep(30)
 
-# Start background thread immediately on launch
+# Start background thread immediately
 engine_thread = threading.Thread(target=run_market_engine, daemon=True)
 engine_thread.start()
 
@@ -227,4 +234,3 @@ with gr.Blocks(title="NSE Stock Market AI Bot") as demo:
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
     demo.launch(server_name="0.0.0.0", server_port=port)
-           
