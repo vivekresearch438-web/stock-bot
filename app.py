@@ -68,12 +68,13 @@ def log(msg):
     if len(logs) > 50:
         logs.pop(0)
 
-# ==================== 🤖 GEMINI CALL VIA HTTP ====================
+# ==================== 🤖 GEMINI CALL VIA HTTP (AQ KEY COMPATIBLE) ====================
 def ask_gemini_analysis(symbol_name, timeframe, price_summary):
     if not GEMINI_API_KEY:
         return None, "Error: GEMINI_API_KEY environment variable is empty."
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    # URL without query parameters (AQ keys require x-goog-api-key header)
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
     
     prompt_text = f"""
     {SYSTEM_PROMPT}
@@ -96,8 +97,10 @@ def ask_gemini_analysis(symbol_name, timeframe, price_summary):
         }
     }
 
+    # Pass the AQ key strictly via x-goog-api-key header
     headers = {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "x-goog-api-key": GEMINI_API_KEY
     }
 
     try:
