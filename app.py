@@ -48,8 +48,7 @@ INVESTMENT_WATCHLIST = [
 MIN_CONFIDENCE = 0.80
 MULTI_DAY_CONFIDENCE = 0.85
 # ==========================================================
-
-client = genai.Client(api_key=GEMINI_API_KEY)
+client = genai.Client(api_key=GEMINI_API_KEY, http_options={'api_version': 'v1beta'})
 ACTIVE_POSITIONS = {}
 CLOSED_JOURNAL = []
 POST_MARKET_SCAN_DONE = False
